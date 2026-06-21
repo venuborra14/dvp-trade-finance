@@ -1,0 +1,33 @@
+module DvpSettlement where
+
+import TradeInstrument
+import TokenisedDeposit
+
+template DvpProposal
+  with
+    seller     : Party
+    buyer      : Party
+    warehouse  : Party
+    bank       : Party
+    ewrCid     : ContractId ElectronicWarehouseReceipt
+    depositCid : ContractId TokenisedDeposit
+  where
+    signatory seller
+    observer buyer, warehouse, bank
+
+    choice AcceptDvp : (ContractId ElectronicWarehouseReceipt, ContractId TokenisedDeposit)
+      controller buyer, warehouse, bank
+      do
+        -- LEG 1 (asset): endorse eWR title seller -> buyer
+        endorseProp <- exercise ewrCid ProposeEndorsement with newHolder = buyer
+        newEwrCid   <- exercise endorseProp AcceptEndorsement
+
+        -- LEG 2 (cash): transfer deposit buyer -> seller
+        depProp       <- exercise depositCid ProposeTransfer with newOwner = seller
+        newDepositCid <- exercise depProp AcceptDeposit
+
+        return (newEwrCid, newDepositCid)
+
+    choice CancelDvp : ()
+      controller seller
+      do return ()
