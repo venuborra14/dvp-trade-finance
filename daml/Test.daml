@@ -12,36 +12,30 @@ testHappyPath = do
   seller    <- allocatePartyWithHint "Seller"    (PartyIdHint "Seller")
   buyer     <- allocatePartyWithHint "Buyer"     (PartyIdHint "Buyer")
 
-  -- Warehouse issues an eWR; seller holds title. Both sign.
   ewrCid <- submitMulti [warehouse, seller] [] do
     createCmd ElectronicWarehouseReceipt with
       issuer = warehouse; holder = seller
       goodsDesc = "5000 MT Robusta Coffee, Hamburg"
       quantity = 5000.0; valuation = 9000000.0; currency = "GBP"
 
-  -- Bank issues a tokenised deposit; buyer holds it. Both sign.
   depositCid <- submitMulti [bank, buyer] [] do
     createCmd TokenisedDeposit with
       issuer = bank; owner = buyer
       amount = 9000000.0; currency = "GBP"
 
-  -- Seller proposes the DvP swap.
   dvpCid <- submit seller do
     createCmd DvpProposal with
       seller; buyer; warehouse; bank; ewrCid; depositCid
 
-  -- Buyer + warehouse + bank accept: BOTH legs move in ONE transaction.
   (newEwrCid, newDepositCid) <- submitMulti [buyer, warehouse, bank] [] do
     exerciseCmd dvpCid AcceptDvp
 
-  -- Verify: buyer now holds the goods, seller now holds the cash.
   Some ewr <- queryContractId buyer newEwrCid
   assertMsg "Buyer should hold the eWR" (ewr.holder == buyer)
   Some dep <- queryContractId seller newDepositCid
   assertMsg "Seller should hold the deposit" (dep.owner == seller)
   pure ()
 
--- NEGATIVE: buyer alone cannot settle — missing warehouse + bank authority.
 testBuyerCannotSettleAlone : Script ()
 testBuyerCannotSettleAlone = do
   bank      <- allocatePartyWithHint "Bank"      (PartyIdHint "Bank")
@@ -64,7 +58,39 @@ testBuyerCannotSettleAlone = do
     createCmd DvpProposal with
       seller; buyer; warehouse; bank; ewrCid; depositCid
 
-  -- Buyer tries to accept WITHOUT warehouse and bank. Must fail.
   submitMustFail buyer do
     exerciseCmd dvpCid AcceptDvp
+  pure ()
+
+initialize : Script ()
+initialize = do
+  bank      <- allocatePartyWithHint "Bank"      (PartyIdHint "Bank")
+  warehouse <- allocatePartyWithHint "Warehouse" (PartyIdHint "Warehouse")
+  seller    <- allocatePartyWithHint "Seller"    (PartyIdHint "Seller")
+  buyer     <- allocatePartyWithHint "Buyer"     (PartyIdHint "Buyer")
+
+  bankId      <- validateUserId "bank"
+  warehouseId <- validateUserId "warehouse"
+  sellerId    <- validateUserId "seller"
+  buyerId     <- validateUserId "buyer"
+  createUser (User bankId      (Some bank))      [CanActAs bank]
+  createUser (User warehouseId (Some warehouse)) [CanActAs warehouse]
+  createUser (User sellerId    (Some seller))    [CanActAs seller]
+  createUser (User buyerId     (Some buyer))     [CanActAs buyer]
+
+  ewrCid <- submitMulti [warehouse, seller] [] do
+    createCmd ElectronicWarehouseReceipt with
+      issuer = warehouse; holder = seller
+      goodsDesc = "5000 MT Robusta Coffee, Hamburg"
+      quantity = 5000.0; valuation = 9000000.0; currency = "GBP"
+
+  depositCid <- submitMulti [bank, buyer] [] do
+    createCmd TokenisedDeposit with
+      issuer = bank; owner = buyer
+      amount = 9000000.0; currency = "GBP"
+
+  _ <- submit seller do
+    createCmd DvpProposal with
+      seller; buyer; warehouse; bank; ewrCid; depositCid
+
   pure ()
