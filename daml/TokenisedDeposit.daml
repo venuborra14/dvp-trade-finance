@@ -1,0 +1,36 @@
+module TokenisedDeposit where
+
+template TokenisedDeposit
+  with
+    issuer   : Party
+    owner    : Party
+    amount   : Decimal
+    currency : Text
+  where
+    signatory issuer, owner
+
+    ensure amount > 0.0
+
+    choice ProposeTransfer : ContractId DepositTransferProposal
+      with newOwner : Party
+      controller owner
+      do
+        create DepositTransferProposal with
+          issuer; owner; newOwner; amount; currency
+
+template DepositTransferProposal
+  with
+    issuer   : Party
+    owner    : Party
+    newOwner : Party
+    amount   : Decimal
+    currency : Text
+  where
+    signatory issuer, owner
+    observer newOwner
+
+    choice AcceptDeposit : ContractId TokenisedDeposit
+      controller newOwner
+      do
+        create TokenisedDeposit with
+          issuer; owner = newOwner; amount; currency
