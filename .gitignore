@@ -1,0 +1,5 @@
+.daml/
+*.dar
+.vscode/
+*.log
+.DS_Store
