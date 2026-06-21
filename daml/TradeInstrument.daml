@@ -1,0 +1,40 @@
+module TradeInstrument where
+
+template ElectronicWarehouseReceipt
+  with
+    issuer    : Party
+    holder    : Party
+    goodsDesc : Text
+    quantity  : Decimal
+    valuation : Decimal
+    currency  : Text
+  where
+    signatory issuer, holder
+
+    ensure quantity > 0.0 && valuation > 0.0
+
+    choice ProposeEndorsement : ContractId EwrEndorsementProposal
+      with newHolder : Party
+      controller holder
+      do
+        create EwrEndorsementProposal with
+          issuer; holder; newHolder; goodsDesc; quantity; valuation; currency
+
+template EwrEndorsementProposal
+  with
+    issuer    : Party
+    holder    : Party
+    newHolder : Party
+    goodsDesc : Text
+    quantity  : Decimal
+    valuation : Decimal
+    currency  : Text
+  where
+    signatory issuer, holder
+    observer newHolder
+
+    choice AcceptEndorsement : ContractId ElectronicWarehouseReceipt
+      controller newHolder
+      do
+        create ElectronicWarehouseReceipt with
+          issuer; holder = newHolder; goodsDesc; quantity; valuation; currency
